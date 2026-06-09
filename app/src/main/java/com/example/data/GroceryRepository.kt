@@ -22,7 +22,7 @@ class GroceryRepository(private val dao: GroceryItemDao) {
         dao.deleteItemById(item.id)
     }
 
-    suspend fun archivePurchased() {
-        dao.archivePurchasedItems()
+    suspend fun checkoutCart() {
+        dao.checkoutAllActiveItems()
     }
 }

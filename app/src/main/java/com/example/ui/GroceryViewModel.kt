@@ -41,21 +41,15 @@ class GroceryViewModel(private val repository: GroceryRepository) : ViewModel() 
         }
     }
 
-    fun togglePurchased(item: GroceryItem) {
-        viewModelScope.launch {
-            repository.togglePurchased(item)
-        }
-    }
-
     fun deleteItem(item: GroceryItem) {
         viewModelScope.launch {
             repository.delete(item)
         }
     }
 
-    fun archivePurchased() {
+    fun checkoutCart() {
         viewModelScope.launch {
-            repository.archivePurchased()
+            repository.checkoutCart()
         }
     }
 

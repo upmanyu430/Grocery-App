@@ -46,8 +46,8 @@ interface GroceryItemDao {
     @Query("DELETE FROM grocery_items WHERE id = :id")
     suspend fun deleteItemById(id: Int)
 
-    @Query("UPDATE grocery_items SET isArchived = 1 WHERE isPurchased = 1")
-    suspend fun archivePurchasedItems()
+    @Query("UPDATE grocery_items SET isArchived = 1, isPurchased = 1 WHERE isArchived = 0")
+    suspend fun checkoutAllActiveItems()
 }
 
 @Database(entities = [GroceryItem::class], version = 1, exportSchema = false)

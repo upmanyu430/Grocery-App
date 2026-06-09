@@ -13,7 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Refresh
@@ -72,7 +73,7 @@ fun GlassBackground() {
 fun GroceryApp(viewModel: GroceryViewModel) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: "list"
+    val currentRoute = navBackStackEntry?.destination?.route ?: "shop"
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -102,7 +103,7 @@ fun GroceryApp(viewModel: GroceryViewModel) {
                     modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
                 ) {
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Shop") },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Shop") },
                         label = { Text("Shop") },
                         selected = currentRoute == "shop",
                         colors = NavigationBarItemDefaults.colors(
@@ -121,9 +122,9 @@ fun GroceryApp(viewModel: GroceryViewModel) {
                     }
                 )
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.List, contentDescription = "List") },
-                        label = { Text("List") },
-                        selected = currentRoute == "list",
+                        icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Cart") },
+                        label = { Text("Cart") },
+                        selected = currentRoute == "cart",
                         colors = NavigationBarItemDefaults.colors(
                              indicatorColor = com.example.ui.theme.Emerald50,
                              selectedIconColor = com.example.ui.theme.Emerald600,
@@ -132,7 +133,7 @@ fun GroceryApp(viewModel: GroceryViewModel) {
                              unselectedTextColor = com.example.ui.theme.Slate400
                         ),
                     onClick = {
-                        if (currentRoute != "list") navController.navigate("list") {
+                        if (currentRoute != "cart") navController.navigate("cart") {
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -140,8 +141,8 @@ fun GroceryApp(viewModel: GroceryViewModel) {
                     }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Refresh, contentDescription = "History") },
-                    label = { Text("History") },
+                    icon = { Icon(Icons.Default.Refresh, contentDescription = "Order Again") },
+                    label = { Text("Order Again") },
                     selected = currentRoute == "history",
                     colors = NavigationBarItemDefaults.colors(
                          indicatorColor = com.example.ui.theme.Emerald50,
@@ -169,8 +170,8 @@ fun GroceryApp(viewModel: GroceryViewModel) {
             composable("shop") {
                 ShopScreen(viewModel)
             }
-            composable("list") {
-                ListScreen(viewModel)
+            composable("cart") {
+                CartScreen(viewModel)
             }
             composable("history") {
                 HistoryScreen(viewModel)
@@ -202,7 +203,7 @@ fun getItemCategory(name: String): String {
 }
 
 @Composable
-fun ListScreen(viewModel: GroceryViewModel) {
+fun CartScreen(viewModel: GroceryViewModel) {
     var newItemName by remember { mutableStateOf("") }
     val items by viewModel.activeItems.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
@@ -210,7 +211,7 @@ fun ListScreen(viewModel: GroceryViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Shopping List",
+            text = "Your Cart",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             color = com.example.ui.theme.Slate800
@@ -225,7 +226,7 @@ fun ListScreen(viewModel: GroceryViewModel) {
                 value = newItemName,
                 onValueChange = { newItemName = it },
                 modifier = Modifier.weight(1f),
-                label = { Text("Add Item") },
+                label = { Text("Search and Add Item") },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -255,7 +256,7 @@ fun ListScreen(viewModel: GroceryViewModel) {
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "Your list is empty. Add items above!",
+                    text = "Your cart is empty. Add items above!",
                     style = MaterialTheme.typography.bodyLarge,
                     color = com.example.ui.theme.Slate500
                 )
@@ -268,8 +269,7 @@ fun ListScreen(viewModel: GroceryViewModel) {
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val activeItemsList = items.filter { !it.isPurchased && it.name.contains(searchQuery, ignoreCase = true) }
-                    val purchasedItemsList = items.filter { it.isPurchased && it.name.contains(searchQuery, ignoreCase = true) }
+                    val activeItemsList = items.filter { it.name.contains(searchQuery, ignoreCase = true) }
                     val groupedActiveItems = activeItemsList.groupBy { getItemCategory(it.name) }
                     val sortedCategories = groupedActiveItems.keys.sorted()
 
@@ -286,63 +286,34 @@ fun ListScreen(viewModel: GroceryViewModel) {
                         items(groupedActiveItems[category] ?: emptyList(), key = { it.id }) { item ->
                             ItemCard(
                                 item = item,
-                                onToggle = { viewModel.togglePurchased(item) },
                                 onDelete = { viewModel.deleteItem(item) }
                             )
                         }
                     }
 
-                    if (purchasedItemsList.isNotEmpty()) {
-                        item {
-                            Text(
-                                text = "Purchased",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = com.example.ui.theme.Slate500,
-                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                            )
-                        }
-                        items(purchasedItemsList, key = { it.id }) { item ->
-                            ItemCard(
-                                item = item,
-                                onToggle = { viewModel.togglePurchased(item) },
-                                onDelete = { viewModel.deleteItem(item) }
-                            )
-                        }
-                        
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(
-                                    onClick = { viewModel.archivePurchased() },
-                                    modifier = Modifier.weight(1f).height(48.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    )
-                                ) {
-                                    Text("Clear")
-                                }
-                                
-                                val context = androidx.compose.ui.platform.LocalContext.current
-                                Button(
-                                    onClick = {
-                                        val total = purchasedItemsList.size * 50
-                                        val uri = android.net.Uri.parse("upi://pay?pa=store@upi&pn=Grocery%20Store&am=${total}.00&cu=INR")
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                                        val chooser = android.content.Intent.createChooser(intent, "Pay with UPI")
-                                        context.startActivity(chooser)
-                                    },
-                                    modifier = Modifier.weight(1f).height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = Color.White
-                                    )
-                                ) {
-                                    Text("Pay ₹${purchasedItemsList.size * 50} (UPI)")
-                                }
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            Button(
+                                onClick = {
+                                    val total = items.size * 50
+                                    val uri = android.net.Uri.parse("upi://pay?pa=store@upi&pn=Grocery%20Store&am=${total}.00&cu=INR")
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                                    val chooser = android.content.Intent.createChooser(intent, "Pay with UPI")
+                                    context.startActivity(chooser)
+                                    viewModel.checkoutCart()
+                                },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("Checkout and Pay ₹${items.size * 50} (UPI)")
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
                         }
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }
@@ -351,14 +322,13 @@ fun ListScreen(viewModel: GroceryViewModel) {
 }
 
 @Composable
-fun ItemCard(item: GroceryItem, onToggle: () -> Unit, onDelete: () -> Unit) {
+fun ItemCard(item: GroceryItem, onDelete: () -> Unit) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onToggle() },
+            .fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (item.isPurchased) com.example.ui.theme.GlassWhite60 else com.example.ui.theme.GlassWhite80,
+            containerColor = com.example.ui.theme.GlassWhite80,
         ),
         border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.BorderWhite20),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -367,27 +337,21 @@ fun ItemCard(item: GroceryItem, onToggle: () -> Unit, onDelete: () -> Unit) {
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(
-                checked = item.isPurchased,
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = MaterialTheme.colorScheme.primary,
-                    uncheckedColor = com.example.ui.theme.Slate400
-                )
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+            Box(modifier = Modifier.size(32.dp).background(Color.White, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = com.example.ui.theme.Slate600, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = item.name,
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium,
-                textDecoration = if (item.isPurchased) TextDecoration.LineThrough else TextDecoration.None,
-                color = if (item.isPurchased) com.example.ui.theme.Slate500 else com.example.ui.theme.Slate800
+                color = com.example.ui.theme.Slate800
             )
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error
+                    contentDescription = "Remove",
+                    tint = com.example.ui.theme.Slate400
                 )
             }
         }
@@ -403,7 +367,7 @@ fun HistoryScreen(viewModel: GroceryViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Purchase History",
+            text = "Order Again",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             color = com.example.ui.theme.Slate800
@@ -418,7 +382,7 @@ fun HistoryScreen(viewModel: GroceryViewModel) {
         if (historyItems.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "No purchase history yet.",
+                    text = "No previous orders yet.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = com.example.ui.theme.Slate500
                 )
@@ -464,7 +428,7 @@ fun HistoryItemCard(item: GroceryItem, onAdd: () -> Unit, onDelete: () -> Unit) 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(modifier = Modifier.size(32.dp).background(Color.White, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.List, contentDescription = null, tint = com.example.ui.theme.Slate600, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = com.example.ui.theme.Slate600, modifier = Modifier.size(20.dp))
             }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
@@ -475,7 +439,7 @@ fun HistoryItemCard(item: GroceryItem, onAdd: () -> Unit, onDelete: () -> Unit) 
                 color = com.example.ui.theme.Slate800
             )
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete from history", tint = com.example.ui.theme.Slate400)
+                Icon(Icons.Default.Delete, contentDescription = "Delete from previous orders", tint = com.example.ui.theme.Slate400)
             }
         }
     }
