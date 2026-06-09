@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -66,16 +67,35 @@ fun GlassBackground() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroceryApp(viewModel: GroceryViewModel) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "list"
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
         GlassBackground()
         Scaffold(
             containerColor = Color.Transparent,
+            topBar = {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.updateSearchQuery(it) },
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                    placeholder = { Text("Search items...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = com.example.ui.theme.GlassWhite80,
+                        unfocusedContainerColor = com.example.ui.theme.GlassWhite60,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = com.example.ui.theme.BorderWhite40,
+                    )
+                )
+            },
             bottomBar = {
                 NavigationBar(
                     containerColor = com.example.ui.theme.GlassWhite70,
@@ -120,25 +140,6 @@ fun GroceryApp(viewModel: GroceryViewModel) {
                     }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Suggestions") },
-                    label = { Text("Suggestions") },
-                    selected = currentRoute == "suggestions",
-                    colors = NavigationBarItemDefaults.colors(
-                         indicatorColor = com.example.ui.theme.Emerald50,
-                         selectedIconColor = com.example.ui.theme.Emerald600,
-                         selectedTextColor = com.example.ui.theme.Emerald600,
-                         unselectedIconColor = com.example.ui.theme.Slate400,
-                         unselectedTextColor = com.example.ui.theme.Slate400
-                    ),
-                    onClick = {
-                        if (currentRoute != "suggestions") navController.navigate("suggestions") {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-                NavigationBarItem(
                     icon = { Icon(Icons.Default.Refresh, contentDescription = "History") },
                     label = { Text("History") },
                     selected = currentRoute == "history",
@@ -170,13 +171,6 @@ fun GroceryApp(viewModel: GroceryViewModel) {
             }
             composable("list") {
                 ListScreen(viewModel)
-            }
-            composable("suggestions") {
-                SuggestionsScreen(viewModel, onNavigateBack = {
-                    navController.navigate("list") {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = false }
-                    }
-                })
             }
             composable("history") {
                 HistoryScreen(viewModel)
@@ -211,6 +205,7 @@ fun getItemCategory(name: String): String {
 fun ListScreen(viewModel: GroceryViewModel) {
     var newItemName by remember { mutableStateOf("") }
     val items by viewModel.activeItems.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(16.dp))
@@ -260,7 +255,7 @@ fun ListScreen(viewModel: GroceryViewModel) {
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "Your list is empty. Add items above or check out AI Suggestions!",
+                    text = "Your list is empty. Add items above!",
                     style = MaterialTheme.typography.bodyLarge,
                     color = com.example.ui.theme.Slate500
                 )
@@ -273,8 +268,8 @@ fun ListScreen(viewModel: GroceryViewModel) {
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val activeItemsList = items.filter { !it.isPurchased }
-                    val purchasedItemsList = items.filter { it.isPurchased }
+                    val activeItemsList = items.filter { !it.isPurchased && it.name.contains(searchQuery, ignoreCase = true) }
+                    val purchasedItemsList = items.filter { it.isPurchased && it.name.contains(searchQuery, ignoreCase = true) }
                     val groupedActiveItems = activeItemsList.groupBy { getItemCategory(it.name) }
                     val sortedCategories = groupedActiveItems.keys.sorted()
 
@@ -317,14 +312,34 @@ fun ListScreen(viewModel: GroceryViewModel) {
                         
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
-                            OutlinedButton(
-                                onClick = { viewModel.archivePurchased() },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Text("Clear Purchased Items")
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { viewModel.archivePurchased() },
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Text("Clear")
+                                }
+                                
+                                val context = androidx.compose.ui.platform.LocalContext.current
+                                Button(
+                                    onClick = {
+                                        val total = purchasedItemsList.size * 50
+                                        val uri = android.net.Uri.parse("upi://pay?pa=store@upi&pn=Grocery%20Store&am=${total}.00&cu=INR")
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                                        val chooser = android.content.Intent.createChooser(intent, "Pay with UPI")
+                                        context.startActivity(chooser)
+                                    },
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("Pay ₹${purchasedItemsList.size * 50} (UPI)")
+                                }
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                         }
@@ -379,101 +394,11 @@ fun ItemCard(item: GroceryItem, onToggle: () -> Unit, onDelete: () -> Unit) {
     }
 }
 
-@Composable
-fun SuggestionsScreen(viewModel: GroceryViewModel, onNavigateBack: () -> Unit) {
-    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoadingSuggestions.collectAsStateWithLifecycle()
-
-    LaunchedEffect(Unit) {
-        // Fetch new suggestions every time we enter this screen
-        viewModel.fetchSuggestions()
-    }
-
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Smart Suggestions",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = com.example.ui.theme.Slate800
-        )
-        Text(
-            text = "AI-powered recommendations based on your past habits.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = com.example.ui.theme.Slate500
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (suggestions.isEmpty() || (suggestions.size == 1 && suggestions[0].startsWith("Please config"))) {
-             Box(modifier = Modifier.fillMaxSize().weight(1f), contentAlignment = Alignment.Center) {
-                Text(
-                    text = suggestions.firstOrNull() ?: "No suggestions found.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error
-                )
-             }
-        } else {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(com.example.ui.theme.GlassWhite40, RoundedCornerShape(32.dp))
-                    .border(1.dp, com.example.ui.theme.BorderWhite40, RoundedCornerShape(32.dp))
-                    .padding(16.dp)
-            ) {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(suggestions, key = { it }) { suggestion ->
-                        SuggestionCard(
-                            name = suggestion,
-                            onAdd = {
-                                viewModel.addItem(suggestion)
-                                onNavigateBack()
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SuggestionCard(name: String, onAdd: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onAdd() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.GlassWhite60),
-        border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.BorderWhite20),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(modifier = Modifier.size(40.dp).background(Color.White, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = name,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium
-            )
-            IconButton(onClick = onAdd) {
-                Icon(Icons.Default.Add, contentDescription = "Add to List")
-            }
-        }
-    }
-}
 
 @Composable
 fun HistoryScreen(viewModel: GroceryViewModel) {
     val historyItems by viewModel.historyItems.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(16.dp))
@@ -507,11 +432,12 @@ fun HistoryScreen(viewModel: GroceryViewModel) {
                     .border(1.dp, com.example.ui.theme.BorderWhite40, RoundedCornerShape(32.dp))
                     .padding(16.dp)
             ) {
+                val filteredHistoryItems = historyItems.filter { it.name.contains(searchQuery, ignoreCase = true) }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(historyItems, key = { it.id }) { item ->
+                    items(filteredHistoryItems, key = { it.id }) { item ->
                         HistoryItemCard(
                             item = item,
                             onAdd = { viewModel.addItem(item.name) },
@@ -570,6 +496,8 @@ val shopItems = listOf(
 
 @Composable
 fun ShopScreen(viewModel: GroceryViewModel) {
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    
     Column(modifier = Modifier.fillMaxSize()) {
         Spacer(modifier = Modifier.height(16.dp))
         Text(
@@ -594,7 +522,8 @@ fun ShopScreen(viewModel: GroceryViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(shopItems) { item ->
+            val filteredShopItems = shopItems.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            items(filteredShopItems) { item ->
                 ShopItemCard(item = item, onAdd = { viewModel.addItem(item.name) })
             }
         }

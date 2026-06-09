@@ -7,6 +7,9 @@ class GroceryRepository(private val dao: GroceryItemDao) {
     val historyItems: Flow<List<GroceryItem>> = dao.getHistoryItems()
     val frequentItemNames: Flow<List<String>> = dao.getFrequentItemNames()
 
+    suspend fun getActiveItemsOnce(): List<GroceryItem> = dao.getActiveItemsOnce()
+    suspend fun getHistoryItemsOnce(): List<GroceryItem> = dao.getHistoryItemsOnce()
+
     suspend fun insert(name: String) {
         dao.insertItem(GroceryItem(name = name))
     }

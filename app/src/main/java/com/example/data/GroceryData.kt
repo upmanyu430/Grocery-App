@@ -25,8 +25,14 @@ interface GroceryItemDao {
     @Query("SELECT * FROM grocery_items WHERE isArchived = 0 ORDER BY isPurchased ASC, timestamp DESC")
     fun getActiveItems(): Flow<List<GroceryItem>>
 
+    @Query("SELECT * FROM grocery_items WHERE isArchived = 0")
+    suspend fun getActiveItemsOnce(): List<GroceryItem>
+
     @Query("SELECT * FROM grocery_items WHERE isArchived = 1 ORDER BY timestamp DESC")
     fun getHistoryItems(): Flow<List<GroceryItem>>
+
+    @Query("SELECT * FROM grocery_items WHERE isArchived = 1 ORDER BY timestamp DESC")
+    suspend fun getHistoryItemsOnce(): List<GroceryItem>
 
     @Query("SELECT name FROM grocery_items GROUP BY name ORDER BY COUNT(id) DESC LIMIT 50")
     fun getFrequentItemNames(): Flow<List<String>>

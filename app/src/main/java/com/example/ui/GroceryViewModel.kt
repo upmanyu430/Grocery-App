@@ -2,7 +2,6 @@ package com.example.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ai.suggestGroceryItems
 import com.example.data.GroceryItem
 import com.example.data.GroceryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,11 +27,12 @@ class GroceryViewModel(private val repository: GroceryRepository) : ViewModel() 
             initialValue = emptyList()
         )
 
-    private val _suggestions = MutableStateFlow<List<String>>(emptyList())
-    val suggestions: StateFlow<List<String>> = _suggestions
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
 
-    private val _isLoadingSuggestions = MutableStateFlow(false)
-    val isLoadingSuggestions: StateFlow<Boolean> = _isLoadingSuggestions
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
 
     fun addItem(name: String) {
         if (name.isBlank()) return
@@ -59,13 +59,4 @@ class GroceryViewModel(private val repository: GroceryRepository) : ViewModel() 
         }
     }
 
-    fun fetchSuggestions() {
-        viewModelScope.launch {
-            _isLoadingSuggestions.value = true
-            val frequentItems = repository.frequentItemNames.first()
-            val aiSuggestions = suggestGroceryItems(frequentItems)
-            _suggestions.value = aiSuggestions
-            _isLoadingSuggestions.value = false
-        }
-    }
 }

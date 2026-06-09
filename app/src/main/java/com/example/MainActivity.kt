@@ -18,15 +18,36 @@ import com.example.ui.GroceryApp
 import com.example.ui.GroceryViewModel
 import com.example.ui.theme.MyApplicationTheme
 
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
+import com.example.worker.GroceryReminderWorker
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
 
-    val db = Room.databaseBuilder(
-        applicationContext,
-        AppDatabase::class.java, "grocery-database"
-    ).build()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+        }
+    }
+
+    val workRequest = PeriodicWorkRequestBuilder<GroceryReminderWorker>(1, TimeUnit.DAYS).build()
+    WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+        "GroceryReminder",
+        ExistingPeriodicWorkPolicy.KEEP,
+        workRequest
+    )
+
+    val db = com.example.data.DatabaseProvider.getDatabase(applicationContext)
     
     val repository = GroceryRepository(db.groceryItemDao())
     val factory = object : ViewModelProvider.Factory {
