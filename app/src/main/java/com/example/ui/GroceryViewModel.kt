@@ -1,0 +1,71 @@
+package com.example.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.ai.suggestGroceryItems
+import com.example.data.GroceryItem
+import com.example.data.GroceryRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+
+class GroceryViewModel(private val repository: GroceryRepository) : ViewModel() {
+
+    val activeItems: StateFlow<List<GroceryItem>> = repository.activeItems
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val historyItems: StateFlow<List<GroceryItem>> = repository.historyItems
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private val _suggestions = MutableStateFlow<List<String>>(emptyList())
+    val suggestions: StateFlow<List<String>> = _suggestions
+
+    private val _isLoadingSuggestions = MutableStateFlow(false)
+    val isLoadingSuggestions: StateFlow<Boolean> = _isLoadingSuggestions
+
+    fun addItem(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            repository.insert(name)
+        }
+    }
+
+    fun togglePurchased(item: GroceryItem) {
+        viewModelScope.launch {
+            repository.togglePurchased(item)
+        }
+    }
+
+    fun deleteItem(item: GroceryItem) {
+        viewModelScope.launch {
+            repository.delete(item)
+        }
+    }
+
+    fun archivePurchased() {
+        viewModelScope.launch {
+            repository.archivePurchased()
+        }
+    }
+
+    fun fetchSuggestions() {
+        viewModelScope.launch {
+            _isLoadingSuggestions.value = true
+            val frequentItems = repository.frequentItemNames.first()
+            val aiSuggestions = suggestGroceryItems(frequentItems)
+            _suggestions.value = aiSuggestions
+            _isLoadingSuggestions.value = false
+        }
+    }
+}
