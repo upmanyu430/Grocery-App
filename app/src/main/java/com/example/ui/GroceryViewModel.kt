@@ -34,10 +34,10 @@ class GroceryViewModel(private val repository: GroceryRepository) : ViewModel() 
         _searchQuery.value = query
     }
 
-    fun addItem(name: String) {
-        if (name.isBlank()) return
+    fun addItem(name: String, quantity: Int = 1) {
+        if (name.isBlank() || quantity <= 0) return
         viewModelScope.launch {
-            repository.insert(name)
+            repository.insert(name, quantity)
         }
     }
 

@@ -10,8 +10,10 @@ class GroceryRepository(private val dao: GroceryItemDao) {
     suspend fun getActiveItemsOnce(): List<GroceryItem> = dao.getActiveItemsOnce()
     suspend fun getHistoryItemsOnce(): List<GroceryItem> = dao.getHistoryItemsOnce()
 
-    suspend fun insert(name: String) {
-        dao.insertItem(GroceryItem(name = name))
+    suspend fun insert(name: String, quantity: Int = 1) {
+        repeat(quantity) {
+            dao.insertItem(GroceryItem(name = name))
+        }
     }
 
     suspend fun togglePurchased(item: GroceryItem) {

@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.TextButton
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelProvider
@@ -81,27 +83,30 @@ fun GroceryApp(viewModel: GroceryViewModel) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.updateSearchQuery(it) },
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-                    placeholder = { Text("Search items...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = com.example.ui.theme.GlassWhite80,
-                        unfocusedContainerColor = com.example.ui.theme.GlassWhite60,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = com.example.ui.theme.BorderWhite40,
+                if (currentRoute != "login") {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.updateSearchQuery(it) },
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                        placeholder = { Text("Search items...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = com.example.ui.theme.GlassWhite80,
+                            unfocusedContainerColor = com.example.ui.theme.GlassWhite60,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = com.example.ui.theme.BorderWhite40,
+                        )
                     )
-                )
+                }
             },
             bottomBar = {
-                NavigationBar(
-                    containerColor = com.example.ui.theme.GlassWhite70,
-                    modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
-                ) {
+                if (currentRoute != "login") {
+                    NavigationBar(
+                        containerColor = com.example.ui.theme.GlassWhite70,
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                    ) {
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Home, contentDescription = "Shop") },
                         label = { Text("Shop") },
@@ -159,14 +164,22 @@ fun GroceryApp(viewModel: GroceryViewModel) {
                         }
                     }
                 )
+                    }
             }
         }
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "shop",
+            startDestination = "login",
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable("login") {
+                LoginScreen(onLoginSuccess = {
+                    navController.navigate("shop") {
+                        popUpTo("login") { inclusive = true }
+                    }
+                })
+            }
             composable("shop") {
                 ShopScreen(viewModel)
             }
@@ -202,11 +215,15 @@ fun getItemCategory(name: String): String {
     return "Other"
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CartScreen(viewModel: GroceryViewModel) {
     var newItemName by remember { mutableStateOf("") }
     val items by viewModel.activeItems.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var paymentState by remember { mutableStateOf("idle") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(16.dp))
@@ -294,15 +311,9 @@ fun CartScreen(viewModel: GroceryViewModel) {
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val context = androidx.compose.ui.platform.LocalContext.current
                             Button(
                                 onClick = {
-                                    val total = items.size * 50
-                                    val uri = android.net.Uri.parse("upi://pay?pa=store@upi&pn=Grocery%20Store&am=${total}.00&cu=INR")
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
-                                    val chooser = android.content.Intent.createChooser(intent, "Pay with UPI")
-                                    context.startActivity(chooser)
-                                    viewModel.checkoutCart()
+                                    showBottomSheet = true
                                 },
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
                                 colors = ButtonDefaults.buttonColors(
@@ -310,10 +321,99 @@ fun CartScreen(viewModel: GroceryViewModel) {
                                     contentColor = Color.White
                                 )
                             ) {
-                                Text("Checkout and Pay ₹${items.size * 50} (UPI)")
+                                Text("Checkout")
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    if (showBottomSheet) {
+        val totalItemsCost = items.size * 50
+        val deliveryCharge = if (totalItemsCost > 0) 20 else 0
+        val grandTotal = totalItemsCost + deliveryCharge
+        val context = androidx.compose.ui.platform.LocalContext.current
+
+        LaunchedEffect(paymentState) {
+            if (paymentState == "processing") {
+                kotlinx.coroutines.delay(1000)
+                paymentState = "success"
+            } else if (paymentState == "success") {
+                kotlinx.coroutines.delay(1000)
+                val uri = android.net.Uri.parse("upi://pay?pa=store@upi&pn=Grocery%20Store&am=${grandTotal}.00&cu=INR")
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                val chooser = android.content.Intent.createChooser(intent, "Pay with UPI")
+                context.startActivity(chooser)
+                viewModel.checkoutCart()
+                showBottomSheet = false
+                paymentState = "idle"
+            }
+        }
+
+        ModalBottomSheet(
+            onDismissRequest = { 
+                showBottomSheet = false
+                paymentState = "idle"
+            },
+            sheetState = sheetState,
+            containerColor = com.example.ui.theme.GlassWhite80
+        ) {
+            androidx.compose.animation.AnimatedContent(
+                targetState = paymentState,
+                label = "payment_state_animation"
+            ) { state ->
+                when (state) {
+                    "idle" -> {
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp).padding(bottom = 16.dp)) {
+                            Text("Order Summary", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = com.example.ui.theme.Slate800)
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Items Total", color = com.example.ui.theme.Slate600)
+                                Text("₹$totalItemsCost", fontWeight = FontWeight.Medium, color = com.example.ui.theme.Slate800)
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Delivery Charge", color = com.example.ui.theme.Slate600)
+                                Text("₹$deliveryCharge", fontWeight = FontWeight.Medium, color = com.example.ui.theme.Slate800)
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider(color = com.example.ui.theme.BorderWhite20)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Grand Total", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = com.example.ui.theme.Slate800)
+                                Text("₹$grandTotal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(modifier = Modifier.height(32.dp))
+                            Button(
+                                onClick = { paymentState = "processing" },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("Proceed to Pay ₹$grandTotal")
+                            }
+                        }
+                    }
+                    "processing" -> {
+                        Column(modifier = Modifier.fillMaxWidth().padding(32.dp).padding(bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text("Processing Payment...", style = MaterialTheme.typography.titleMedium, color = com.example.ui.theme.Slate800)
+                        }
+                    }
+                    "success" -> {
+                        Column(modifier = Modifier.fillMaxWidth().padding(32.dp).padding(bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(modifier = Modifier.size(64.dp).background(com.example.ui.theme.Emerald500, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Check, contentDescription = "Success", tint = Color.White, modifier = Modifier.size(40.dp))
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text("Payment Successful!", style = MaterialTheme.typography.titleLarge, color = com.example.ui.theme.Emerald600, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -488,16 +588,17 @@ fun ShopScreen(viewModel: GroceryViewModel) {
         ) {
             val filteredShopItems = shopItems.filter { it.name.contains(searchQuery, ignoreCase = true) }
             items(filteredShopItems) { item ->
-                ShopItemCard(item = item, onAdd = { viewModel.addItem(item.name) })
+                ShopItemCard(item = item, onAdd = { qty -> viewModel.addItem(item.name, qty) })
             }
         }
     }
 }
 
 @Composable
-fun ShopItemCard(item: ShopItemInfo, onAdd: () -> Unit) {
+fun ShopItemCard(item: ShopItemInfo, onAdd: (Int) -> Unit) {
+    var quantity by remember { mutableStateOf(1) }
     Card(
-        modifier = Modifier.fillMaxWidth().height(260.dp),
+        modifier = Modifier.fillMaxWidth().height(290.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.GlassWhite80),
         border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.BorderWhite40),
@@ -540,34 +641,50 @@ fun ShopItemCard(item: ShopItemInfo, onAdd: () -> Unit) {
                     )
                 }
                 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "₹${String.format(java.util.Locale.US, "%.2f", item.price)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = com.example.ui.theme.Slate800
-                    )
-                    
-                    Button(
-                        onClick = onAdd,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = com.example.ui.theme.Emerald50,
-                            contentColor = com.example.ui.theme.Emerald600
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, com.example.ui.theme.Emerald600),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "ADD",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
+                            text = "₹${String.format(java.util.Locale.US, "%.2f", item.price)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = com.example.ui.theme.Slate800
                         )
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(com.example.ui.theme.Emerald50, RoundedCornerShape(8.dp))
+                                .border(1.dp, com.example.ui.theme.Emerald600, RoundedCornerShape(8.dp))
+                                .height(32.dp)
+                        ) {
+                            TextButton(onClick = { if (quantity > 1) quantity-- }, modifier = Modifier.width(32.dp), contentPadding = PaddingValues(0.dp)) {
+                                Text("-", fontWeight = FontWeight.Bold, color = com.example.ui.theme.Emerald600, fontSize = 20.sp)
+                            }
+                            Text(text = quantity.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = com.example.ui.theme.Emerald600, modifier = Modifier.padding(horizontal = 4.dp))
+                            TextButton(onClick = { quantity++ }, modifier = Modifier.width(32.dp), contentPadding = PaddingValues(0.dp)) {
+                                Text("+", fontWeight = FontWeight.Bold, color = com.example.ui.theme.Emerald600, fontSize = 20.sp)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            onAdd(quantity)
+                            quantity = 1
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("ADD TO CART", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     }
                 }
             }
